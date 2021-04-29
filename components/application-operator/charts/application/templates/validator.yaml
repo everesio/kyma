@@ -1,3 +1,4 @@
+{{- if not .Values.global.centralApplicationConnectivityValidatorEnabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -116,3 +117,4 @@ spec:
   selector:
     app: {{ .Release.Name }}-connectivity-validator
     release: {{ .Release.Name }}
+{{- end }}
