@@ -48,6 +48,7 @@ type APIPackage struct {
 	APIDefinitions                 []APIDefinition
 	EventDefinitions               []EventAPIDefinition
 	Documents                      []Document
+	InstanceAuths                  []InstanceAuth
 }
 
 // APIDefinition contains API data such as URL, credentials and spec
@@ -135,4 +136,16 @@ type RequestParameters struct {
 	Headers *map[string][]string `json:"headers"`
 	// Additional query parameters
 	QueryParameters *map[string][]string `json:"queryParameters"`
+}
+
+
+// InstanceAuth contains instance authentication data
+type InstanceAuth struct {
+	ID   string
+	Auth Auth
+}
+
+// Auth contains authentication data
+type Auth struct {
+	Credentials *Credentials
 }

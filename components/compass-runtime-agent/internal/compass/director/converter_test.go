@@ -103,6 +103,62 @@ func TestApplication_ToApplication(t *testing.T) {
 			},
 		},
 		{
+			description: "XXX",
+			compassApp: Application{
+				ID:           appId,
+				Name:         appName,
+				ProviderName: &providerName,
+				Description:  &appDesc,
+				Labels:       Labels(appLabels),
+				Packages: &graphql.PackagePageExt{
+					Data: []*graphql.PackageExt{
+						fixCompassPackageWithInstanceAuth("1"),
+					},
+				},
+			},
+			expectedApp: kymamodel.Application{
+				ID:                  appId,
+				Name:                appName,
+				ProviderDisplayName: providerName,
+				Description:         appDesc,
+				Labels:              appLabels,
+				SystemAuthsIDs:      make([]string, 0),
+				APIPackages: []kymamodel.APIPackage{
+					fixInternalAPIPackageWithInstanceAuth("1"),
+				},
+			},
+		},
+		{
+			description: "convert Compass App using API Packages with instance auths to internal model",
+			compassApp: Application{
+				ID:           appId,
+				Name:         appName,
+				ProviderName: &providerName,
+				Description:  &appDesc,
+				Labels:       Labels(appLabels),
+				Packages: &graphql.PackagePageExt{
+					Data: []*graphql.PackageExt{
+						fixCompassPackageExt("1"),
+						fixCompassPackageExt("2"),
+						fixCompassPackageExt("3"),
+					},
+				},
+			},
+			expectedApp: kymamodel.Application{
+				ID:                  appId,
+				Name:                appName,
+				ProviderDisplayName: providerName,
+				Description:         appDesc,
+				Labels:              appLabels,
+				SystemAuthsIDs:      make([]string, 0),
+				APIPackages: []kymamodel.APIPackage{
+					fixInternalAPIPackage("1"),
+					fixInternalAPIPackage("2"),
+					fixInternalAPIPackage("3"),
+				},
+			},
+		},
+		{
 			description: "convert Compass App with empty Package pages",
 			compassApp: Application{
 				ID:           appId,
@@ -181,6 +237,7 @@ func fixInternalAPIPackage(suffix string) kymamodel.APIPackage {
 			fixInternalDocument("1", fixInternalDocumentContent()),
 			fixInternalDocument("2", fixInternalDocumentContent()),
 		},
+		InstanceAuths: []kymamodel.InstanceAuth{},
 	}
 }
 
@@ -205,6 +262,7 @@ func fixInternalAPIPackageEmptySpecs(suffix string) kymamodel.APIPackage {
 			fixInternalDocument("2", nil),
 			fixInternalDocument("3", nil),
 		},
+		InstanceAuths: []kymamodel.InstanceAuth{},
 	}
 }
 
@@ -268,6 +326,42 @@ func fixInternalAsyncAPISpec() *kymamodel.EventAPISpec {
 
 func fixInternalDocumentContent() []byte {
 	return []byte(`# Md content`)
+}
+
+func fixCompassPackageWithInstanceAuth(suffix string) *graphql.PackageExt {
+
+	return &graphql.PackageExt{
+		Package:          fixCompassPackage(suffix),
+		APIDefinitions:   fixAPIDefinitionPageExt(),
+		EventDefinitions: fixEventAPIDefinitionPageExt(),
+		Documents:        fixDocumentPageExt(),
+		InstanceAuths:    fixInstanceAuths(),
+	}
+}
+
+func fixInternalAPIPackageWithInstanceAuth(suffix string) kymamodel.APIPackage {
+
+	return kymamodel.APIPackage{
+		ID:                             basePackageId + suffix,
+		Name:                           basePackageName + suffix,
+		Description:                    stringPtr(basePackageDesc + suffix),
+		InstanceAuthRequestInputSchema: stringPtr(basePackageInputSchema + suffix),
+		APIDefinitions: []kymamodel.APIDefinition{
+			fixInternalAPIDefinition("1", nil, fixInternalOpenAPISpec()),
+			fixInternalAPIDefinition("2", nil, fixInternalOpenAPISpec()),
+			fixInternalAPIDefinition("3", nil, fixInternalODataSpec()),
+			fixInternalAPIDefinition("4", nil, fixInternalODataSpec()),
+		},
+		EventDefinitions: []kymamodel.EventAPIDefinition{
+			fixInternalEventAPIDefinition("1", fixInternalAsyncAPISpec()),
+			fixInternalEventAPIDefinition("2", fixInternalAsyncAPISpec()),
+		},
+		Documents: []kymamodel.Document{
+			fixInternalDocument("1", fixInternalDocumentContent()),
+			fixInternalDocument("2", fixInternalDocumentContent()),
+		},
+		InstanceAuths: fixInternalInstanceAuths(),
+	}
 }
 
 func fixCompassPackageExt(suffix string) *graphql.PackageExt {
@@ -506,4 +600,112 @@ func fixCompassDocContent() *graphql.CLOB {
 
 func stringPtr(str string) *string {
 	return &str
+}
+
+func fixInstanceAuths() []*graphql.PackageInstanceAuth {
+	return []*graphql.PackageInstanceAuth{
+		{ID: "1", Auth: &graphql.Auth{
+			Credential:  nil,
+			RequestAuth: nil,
+		}},
+		{ID: "2", Auth: &graphql.Auth{
+			Credential: &graphql.BasicCredentialData{
+				Username: "my-user",
+				Password: "my-password",
+			},
+		}},
+		{ID: "3", Auth: &graphql.Auth{
+			Credential: &graphql.OAuthCredentialData{
+				ClientID:     "my-client-id",
+				ClientSecret: "my-client-secret",
+				URL:          "https://test-oauth.com",
+			},
+		}},
+		{ID: "4", Auth: &graphql.Auth{
+			Credential: &graphql.BasicCredentialData{
+				Username: "my-user2",
+				Password: "my-password2",
+			},
+			RequestAuth: &graphql.CredentialRequestAuth{
+				Csrf: &graphql.CSRFTokenCredentialRequestAuth{
+					TokenEndpointURL: "https://csrf.basic.example.com",
+				},
+			},
+		}},
+		{ID: "5", Auth: &graphql.Auth{
+			Credential: &graphql.OAuthCredentialData{
+				ClientID:     "my-client-id2",
+				ClientSecret: "my-client-secret2",
+				URL:          "https://test2-oauth.com",
+			},
+			RequestAuth: &graphql.CredentialRequestAuth{
+				Csrf: &graphql.CSRFTokenCredentialRequestAuth{
+					TokenEndpointURL: "https://csrf.oauth.example.com",
+				},
+			},
+		}},
+	}
+}
+
+func fixInternalInstanceAuths() []kymamodel.InstanceAuth {
+	return []kymamodel.InstanceAuth{
+		{
+			ID: "1",
+			Auth: kymamodel.Auth{
+				Credentials: &kymamodel.Credentials{},
+			},
+		},
+		{
+			ID: "2",
+			Auth: kymamodel.Auth{
+				Credentials: &kymamodel.Credentials{
+					Basic: &kymamodel.Basic{
+						Username: "my-user",
+						Password: "my-password",
+					},
+				},
+			},
+		},
+		{
+			ID: "3",
+			Auth: kymamodel.Auth{
+				Credentials: &kymamodel.Credentials{
+					Oauth: &kymamodel.Oauth{
+						ClientID:     "my-client-id",
+						ClientSecret: "my-client-secret",
+						URL:          "https://test-oauth.com",
+					},
+				},
+			},
+		},
+		{
+			ID: "4",
+			Auth: kymamodel.Auth{
+				Credentials: &kymamodel.Credentials{
+					Basic: &kymamodel.Basic{
+						Username: "my-user2",
+						Password: "my-password2",
+					},
+					CSRFInfo: &kymamodel.CSRFInfo{
+						TokenEndpointURL: "https://csrf.basic.example.com",
+					},
+				},
+			},
+		},
+		{
+			ID: "5",
+			Auth: kymamodel.Auth{
+				Credentials: &kymamodel.Credentials{
+					Oauth: &kymamodel.Oauth{
+						ClientID:     "my-client-id2",
+						ClientSecret: "my-client-secret2",
+						URL:          "https://test2-oauth.com",
+					},
+					CSRFInfo: &kymamodel.CSRFInfo{
+						TokenEndpointURL: "https://csrf.oauth.example.com",
+					},
+				},
+			},
+		},
+	}
 }
