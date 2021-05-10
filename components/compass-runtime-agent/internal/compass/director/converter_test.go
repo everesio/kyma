@@ -103,7 +103,7 @@ func TestApplication_ToApplication(t *testing.T) {
 			},
 		},
 		{
-			description: "XXX",
+			description: "convert Compass App using API Packages to internal model with default instance auth",
 			compassApp: Application{
 				ID:           appId,
 				Name:         appName,
@@ -112,7 +112,43 @@ func TestApplication_ToApplication(t *testing.T) {
 				Labels:       Labels(appLabels),
 				Packages: &graphql.PackagePageExt{
 					Data: []*graphql.PackageExt{
-						fixCompassPackageWithInstanceAuth("1"),
+						fixCompassPackageWithDefaultInstanceAuth("1", nil),
+						fixCompassPackageWithDefaultInstanceAuth("2", &graphql.Auth{
+							Credential: &graphql.BasicCredentialData{
+								Username: "my-user",
+								Password: "my-password",
+							},
+						}),
+						fixCompassPackageWithDefaultInstanceAuth("3", &graphql.Auth{
+							Credential: &graphql.OAuthCredentialData{
+								ClientID:     "my-client-id",
+								ClientSecret: "my-client-secret",
+								URL:          "https://test-oauth.com",
+							},
+						}),
+						fixCompassPackageWithDefaultInstanceAuth("4", &graphql.Auth{
+							Credential: &graphql.BasicCredentialData{
+								Username: "my-user2",
+								Password: "my-password2",
+							},
+							RequestAuth: &graphql.CredentialRequestAuth{
+								Csrf: &graphql.CSRFTokenCredentialRequestAuth{
+									TokenEndpointURL: "https://csrf.basic.example.com",
+								},
+							},
+						}),
+						fixCompassPackageWithDefaultInstanceAuth("5", &graphql.Auth{
+							Credential: &graphql.OAuthCredentialData{
+								ClientID:     "my-client-id2",
+								ClientSecret: "my-client-secret2",
+								URL:          "https://test2-oauth.com",
+							},
+							RequestAuth: &graphql.CredentialRequestAuth{
+								Csrf: &graphql.CSRFTokenCredentialRequestAuth{
+									TokenEndpointURL: "https://csrf.oauth.example.com",
+								},
+							},
+						}),
 					},
 				},
 			},
@@ -124,7 +160,47 @@ func TestApplication_ToApplication(t *testing.T) {
 				Labels:              appLabels,
 				SystemAuthsIDs:      make([]string, 0),
 				APIPackages: []kymamodel.APIPackage{
-					fixInternalAPIPackageWithInstanceAuth("1"),
+					fixInternalAPIPackageWithInstanceAuth("1", nil),
+					fixInternalAPIPackageWithInstanceAuth("2", &kymamodel.Auth{
+						Credentials: &kymamodel.Credentials{
+							Basic: &kymamodel.Basic{
+								Username: "my-user",
+								Password: "my-password",
+							},
+						},
+					}),
+					fixInternalAPIPackageWithInstanceAuth("3", &kymamodel.Auth{
+						Credentials: &kymamodel.Credentials{
+							Oauth: &kymamodel.Oauth{
+								ClientID:     "my-client-id",
+								ClientSecret: "my-client-secret",
+								URL:          "https://test-oauth.com",
+							},
+						},
+					}),
+					fixInternalAPIPackageWithInstanceAuth("4", &kymamodel.Auth{
+						Credentials: &kymamodel.Credentials{
+							Basic: &kymamodel.Basic{
+								Username: "my-user2",
+								Password: "my-password2",
+							},
+							CSRFInfo: &kymamodel.CSRFInfo{
+								TokenEndpointURL: "https://csrf.basic.example.com",
+							},
+						},
+					}),
+					fixInternalAPIPackageWithInstanceAuth("5", &kymamodel.Auth{
+						Credentials: &kymamodel.Credentials{
+							Oauth: &kymamodel.Oauth{
+								ClientID:     "my-client-id2",
+								ClientSecret: "my-client-secret2",
+								URL:          "https://test2-oauth.com",
+							},
+							CSRFInfo: &kymamodel.CSRFInfo{
+								TokenEndpointURL: "https://csrf.oauth.example.com",
+							},
+						},
+					}),
 				},
 			},
 		},
@@ -237,7 +313,7 @@ func fixInternalAPIPackage(suffix string) kymamodel.APIPackage {
 			fixInternalDocument("1", fixInternalDocumentContent()),
 			fixInternalDocument("2", fixInternalDocumentContent()),
 		},
-		InstanceAuths: []kymamodel.InstanceAuth{},
+		//InstanceAuths: []kymamodel.InstanceAuth{},
 	}
 }
 
@@ -262,7 +338,7 @@ func fixInternalAPIPackageEmptySpecs(suffix string) kymamodel.APIPackage {
 			fixInternalDocument("2", nil),
 			fixInternalDocument("3", nil),
 		},
-		InstanceAuths: []kymamodel.InstanceAuth{},
+		//InstanceAuths: []kymamodel.InstanceAuth{},
 	}
 }
 
@@ -328,19 +404,16 @@ func fixInternalDocumentContent() []byte {
 	return []byte(`# Md content`)
 }
 
-func fixCompassPackageWithInstanceAuth(suffix string) *graphql.PackageExt {
-
+func fixCompassPackageWithDefaultInstanceAuth(suffix string, defaultInstanceAuth *graphql.Auth) *graphql.PackageExt {
 	return &graphql.PackageExt{
-		Package:          fixCompassPackage(suffix),
+		Package:          fixCompassPackage(suffix, defaultInstanceAuth),
 		APIDefinitions:   fixAPIDefinitionPageExt(),
 		EventDefinitions: fixEventAPIDefinitionPageExt(),
 		Documents:        fixDocumentPageExt(),
-		InstanceAuths:    fixInstanceAuths(),
 	}
 }
 
-func fixInternalAPIPackageWithInstanceAuth(suffix string) kymamodel.APIPackage {
-
+func fixInternalAPIPackageWithInstanceAuth(suffix string, defaultInstanceAuth *kymamodel.Auth) kymamodel.APIPackage {
 	return kymamodel.APIPackage{
 		ID:                             basePackageId + suffix,
 		Name:                           basePackageName + suffix,
@@ -360,14 +433,14 @@ func fixInternalAPIPackageWithInstanceAuth(suffix string) kymamodel.APIPackage {
 			fixInternalDocument("1", fixInternalDocumentContent()),
 			fixInternalDocument("2", fixInternalDocumentContent()),
 		},
-		InstanceAuths: fixInternalInstanceAuths(),
+		DefaultInstanceAuth: defaultInstanceAuth,
 	}
 }
 
 func fixCompassPackageExt(suffix string) *graphql.PackageExt {
 
 	return &graphql.PackageExt{
-		Package:          fixCompassPackage(suffix),
+		Package:          fixCompassPackage(suffix, nil),
 		APIDefinitions:   fixAPIDefinitionPageExt(),
 		EventDefinitions: fixEventAPIDefinitionPageExt(),
 		Documents:        fixDocumentPageExt(),
@@ -376,21 +449,21 @@ func fixCompassPackageExt(suffix string) *graphql.PackageExt {
 
 func fixCompassPackageExtWithEmptySpecs(suffix string) *graphql.PackageExt {
 	return &graphql.PackageExt{
-		Package:          fixCompassPackage(suffix),
+		Package:          fixCompassPackage(suffix, nil),
 		APIDefinitions:   fixAPIDefinitionPageExtWithEmptyApiSpecs(),
 		EventDefinitions: fixEventAPIDefinitionPageExtWithEmptySpecs(),
 		Documents:        fixDocumentPageExtWithEmptyDocs(),
 	}
 }
 
-func fixCompassPackage(suffix string) graphql.Package {
+func fixCompassPackage(suffix string, defaultInstanceAuth *graphql.Auth) graphql.Package {
 
 	return graphql.Package{
 		ID:                             basePackageId + suffix,
 		Name:                           basePackageName + suffix,
 		Description:                    stringPtr(basePackageDesc + suffix),
 		InstanceAuthRequestInputSchema: (*graphql.JSONSchema)(stringPtr(basePackageInputSchema + suffix)),
-		DefaultInstanceAuth:            nil,
+		DefaultInstanceAuth:            defaultInstanceAuth,
 	}
 }
 
@@ -600,112 +673,4 @@ func fixCompassDocContent() *graphql.CLOB {
 
 func stringPtr(str string) *string {
 	return &str
-}
-
-func fixInstanceAuths() []*graphql.PackageInstanceAuth {
-	return []*graphql.PackageInstanceAuth{
-		{ID: "1", Auth: &graphql.Auth{
-			Credential:  nil,
-			RequestAuth: nil,
-		}},
-		{ID: "2", Auth: &graphql.Auth{
-			Credential: &graphql.BasicCredentialData{
-				Username: "my-user",
-				Password: "my-password",
-			},
-		}},
-		{ID: "3", Auth: &graphql.Auth{
-			Credential: &graphql.OAuthCredentialData{
-				ClientID:     "my-client-id",
-				ClientSecret: "my-client-secret",
-				URL:          "https://test-oauth.com",
-			},
-		}},
-		{ID: "4", Auth: &graphql.Auth{
-			Credential: &graphql.BasicCredentialData{
-				Username: "my-user2",
-				Password: "my-password2",
-			},
-			RequestAuth: &graphql.CredentialRequestAuth{
-				Csrf: &graphql.CSRFTokenCredentialRequestAuth{
-					TokenEndpointURL: "https://csrf.basic.example.com",
-				},
-			},
-		}},
-		{ID: "5", Auth: &graphql.Auth{
-			Credential: &graphql.OAuthCredentialData{
-				ClientID:     "my-client-id2",
-				ClientSecret: "my-client-secret2",
-				URL:          "https://test2-oauth.com",
-			},
-			RequestAuth: &graphql.CredentialRequestAuth{
-				Csrf: &graphql.CSRFTokenCredentialRequestAuth{
-					TokenEndpointURL: "https://csrf.oauth.example.com",
-				},
-			},
-		}},
-	}
-}
-
-func fixInternalInstanceAuths() []kymamodel.InstanceAuth {
-	return []kymamodel.InstanceAuth{
-		{
-			ID: "1",
-			Auth: kymamodel.Auth{
-				Credentials: &kymamodel.Credentials{},
-			},
-		},
-		{
-			ID: "2",
-			Auth: kymamodel.Auth{
-				Credentials: &kymamodel.Credentials{
-					Basic: &kymamodel.Basic{
-						Username: "my-user",
-						Password: "my-password",
-					},
-				},
-			},
-		},
-		{
-			ID: "3",
-			Auth: kymamodel.Auth{
-				Credentials: &kymamodel.Credentials{
-					Oauth: &kymamodel.Oauth{
-						ClientID:     "my-client-id",
-						ClientSecret: "my-client-secret",
-						URL:          "https://test-oauth.com",
-					},
-				},
-			},
-		},
-		{
-			ID: "4",
-			Auth: kymamodel.Auth{
-				Credentials: &kymamodel.Credentials{
-					Basic: &kymamodel.Basic{
-						Username: "my-user2",
-						Password: "my-password2",
-					},
-					CSRFInfo: &kymamodel.CSRFInfo{
-						TokenEndpointURL: "https://csrf.basic.example.com",
-					},
-				},
-			},
-		},
-		{
-			ID: "5",
-			Auth: kymamodel.Auth{
-				Credentials: &kymamodel.Credentials{
-					Oauth: &kymamodel.Oauth{
-						ClientID:     "my-client-id2",
-						ClientSecret: "my-client-secret2",
-						URL:          "https://test2-oauth.com",
-					},
-					CSRFInfo: &kymamodel.CSRFInfo{
-						TokenEndpointURL: "https://csrf.oauth.example.com",
-					},
-				},
-			},
-		},
-	}
 }

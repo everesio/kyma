@@ -48,7 +48,7 @@ func convertAPIPackage(apiPackage *graphql.PackageExt) kymamodel.APIPackage {
 	apis := convertAPIsExt(apiPackage.APIDefinitions.Data)
 	eventAPIs := convertEventAPIsExt(apiPackage.EventDefinitions.Data)
 	documents := convertDocumentsExt(apiPackage.Documents.Data)
-	instanceAuths := convertInstanceAuths(apiPackage.InstanceAuths)
+	defaultInstanceAuth := convertAuth(apiPackage.DefaultInstanceAuth)
 
 	var authRequestInputSchema *string
 	if apiPackage.InstanceAuthRequestInputSchema != nil {
@@ -63,7 +63,7 @@ func convertAPIPackage(apiPackage *graphql.PackageExt) kymamodel.APIPackage {
 		APIDefinitions:                 apis,
 		EventDefinitions:               eventAPIs,
 		Documents:                      documents,
-		InstanceAuths:                  instanceAuths,
+		DefaultInstanceAuth:            defaultInstanceAuth,
 	}
 }
 
@@ -181,25 +181,11 @@ func convertDocument(compassDoc *graphql.Document) kymamodel.Document {
 		Data:        data,
 	}
 }
-
-func convertInstanceAuths(compassInstanceAuths []*graphql.PackageInstanceAuth) []kymamodel.InstanceAuth {
-	var instanceAuths = make([]kymamodel.InstanceAuth, len(compassInstanceAuths))
-
-	for i, instanceAuth := range compassInstanceAuths {
-		instanceAuths[i] = convertInstanceAuth(instanceAuth)
+func convertAuth(compassAuth *graphql.Auth) *kymamodel.Auth {
+	if compassAuth == nil {
+		return nil
 	}
-	return instanceAuths
-}
-
-func convertInstanceAuth(compassInstanceAuth *graphql.PackageInstanceAuth) kymamodel.InstanceAuth {
-	return kymamodel.InstanceAuth{
-		ID:   compassInstanceAuth.ID,
-		Auth: convertAuth(compassInstanceAuth.Auth),
-	}
-}
-
-func convertAuth(compassAuth *graphql.Auth) kymamodel.Auth {
-	return kymamodel.Auth{
+	return &kymamodel.Auth{
 		Credentials: convertCredentials(compassAuth),
 	}
 }

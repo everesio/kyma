@@ -67,8 +67,8 @@ func packagesData() string {
 		apiDefinitions {%s}
 		eventDefinitions {%s}
 		documents {%s}
-		instanceAuths {%s}
-		`, pageData(packageApiDefinitions()), pageData(eventAPIData()), pageData(documentData()), instanceAuthsData())
+		defaultInstanceAuth {%s}
+		`, pageData(packageApiDefinitions()), pageData(eventAPIData()), pageData(documentData()), authData())
 }
 
 func packageApiDefinitions() string {
@@ -120,12 +120,6 @@ func documentData() string {
 		format
 		kind
 		data`)
-}
-
-func instanceAuthsData() string {
-	return fmt.Sprintf(`
-		id
-		auth {%s}`, authData())
 }
 
 func authData() string {

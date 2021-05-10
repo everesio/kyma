@@ -88,9 +88,7 @@ const (
 		hasNextPage}
 	totalCount
 	}
-		instanceAuths {
-		id
-		auth {
+		defaultInstanceAuth {
 		credential {
 		... on BasicCredentialData {
 		username
@@ -107,7 +105,7 @@ const (
 		tokenEndpointURL
 		}
 		}
-		}}
+		}
 		
 	}
 	pageInfo {startCursor
