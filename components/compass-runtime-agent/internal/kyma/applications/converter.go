@@ -2,7 +2,6 @@ package applications
 
 import (
 	"github.com/kyma-project/kyma/components/application-operator/pkg/apis/applicationconnector/v1alpha1"
-	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/k8sconsts"
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/model"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -116,35 +115,29 @@ func (c converter) toAPIEntry(applicationName string, apiPackage model.APIPackag
 		ApiType:                     getApiType(),
 		TargetUrl:                   apiDefinition.TargetUrl,
 		SpecificationUrl:            "", // Director returns BLOB here
-		Credentials:                 c.ToCredentials(applicationName, apiPackage),
+		Credentials:                 c.toCredential(ToCredentials(applicationName, apiPackage)),
 		RequestParametersSecretName: "", //TODO: ?
 	}
 
 	return entry
 }
 
-func (c converter) ToCredentials(applicationName string, apiPackage model.APIPackage) v1alpha1.Credentials {
-	result := v1alpha1.Credentials{}
-	if apiPackage.DefaultInstanceAuth != nil {
-		if apiPackage.DefaultInstanceAuth.Credentials.Oauth != nil {
-			result.SecretName = c.credentialsSecretName(applicationName, apiPackage)
-			result.Type = CredentialsOAuthType
-			result.AuthenticationUrl = apiPackage.DefaultInstanceAuth.Credentials.Oauth.URL
-			if apiPackage.DefaultInstanceAuth.Credentials.CSRFInfo != nil {
-				result.CSRFInfo = &v1alpha1.CSRFInfo{
-					TokenEndpointURL: apiPackage.DefaultInstanceAuth.Credentials.CSRFInfo.TokenEndpointURL,
-				}
-			}
-		} else if apiPackage.DefaultInstanceAuth.Credentials.Basic != nil {
-			result.SecretName = c.credentialsSecretName(applicationName, apiPackage)
-			result.Type = CredentialsBasicType
-		}
+func (c converter) toCredential(credentials *Credentials) v1alpha1.Credentials {
+	if credentials == nil {
+		return v1alpha1.Credentials{}
 	}
-	return result
-}
-
-func (c converter) credentialsSecretName(applicationName string, apiPackage model.APIPackage) string {
-	return k8sconsts.GetResourceName(applicationName, apiPackage.ID)
+	csrfInfo := func(csrfInfo *CSRFInfo) *v1alpha1.CSRFInfo {
+		if csrfInfo != nil {
+			return &v1alpha1.CSRFInfo{TokenEndpointURL: csrfInfo.TokenEndpointURL}
+		}
+		return nil
+	}
+	return v1alpha1.Credentials{
+		Type:              credentials.Type,
+		SecretName:        credentials.SecretName,
+		AuthenticationUrl: credentials.AuthenticationUrl,
+		CSRFInfo:          csrfInfo(credentials.CSRFInfo),
+	}
 }
 
 func (c converter) toEventServiceEntry(eventsDefinition model.EventAPIDefinition) v1alpha1.Entry {
