@@ -1,10 +1,9 @@
 package applications
 
 import (
-	"fmt"
 	"github.com/kyma-project/kyma/components/application-operator/pkg/apis/applicationconnector/v1alpha1"
+	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/k8sconsts"
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/model"
-	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/secrets"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -129,7 +128,8 @@ func (c converter) ToCredentials(applicationName string, apiPackage model.APIPac
 	if apiPackage.DefaultInstanceAuth != nil {
 		if apiPackage.DefaultInstanceAuth.Credentials.Oauth != nil {
 			result.SecretName = c.credentialsSecretName(applicationName, apiPackage)
-			result.Type = secrets.TypeOAuth
+			result.Type = CredentialsOAuthType
+			result.AuthenticationUrl = apiPackage.DefaultInstanceAuth.Credentials.Oauth.URL
 			if apiPackage.DefaultInstanceAuth.Credentials.CSRFInfo != nil {
 				result.CSRFInfo = &v1alpha1.CSRFInfo{
 					TokenEndpointURL: apiPackage.DefaultInstanceAuth.Credentials.CSRFInfo.TokenEndpointURL,
@@ -137,14 +137,14 @@ func (c converter) ToCredentials(applicationName string, apiPackage model.APIPac
 			}
 		} else if apiPackage.DefaultInstanceAuth.Credentials.Basic != nil {
 			result.SecretName = c.credentialsSecretName(applicationName, apiPackage)
-			result.Type = secrets.TypeBasic
+			result.Type = CredentialsBasicType
 		}
 	}
 	return result
 }
 
 func (c converter) credentialsSecretName(applicationName string, apiPackage model.APIPackage) string {
-	return fmt.Sprintf("%s-%s", applicationName, apiPackage.ID)
+	return k8sconsts.GetResourceName(applicationName, apiPackage.ID)
 }
 
 func (c converter) toEventServiceEntry(eventsDefinition model.EventAPIDefinition) v1alpha1.Entry {
