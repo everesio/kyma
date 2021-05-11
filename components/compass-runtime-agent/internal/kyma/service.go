@@ -1,20 +1,25 @@
 package kyma
 
 import (
+	"fmt"
 	"github.com/kyma-project/kyma/components/application-operator/pkg/apis/applicationconnector/v1alpha1"
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/apperrors"
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/apiresources/rafter"
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/apiresources/rafter/clusterassetgroup"
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/applications"
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/model"
+	appsecrets "github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/secrets"
 	log "github.com/sirupsen/logrus"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type service struct {
 	applicationRepository applications.Repository
 	converter             applications.Converter
 	rafter                rafter.Service
+	applicationCredential appsecrets.Service
 }
 
 //go:generate mockery --name=Service
@@ -37,11 +42,12 @@ type Result struct {
 	Error           apperrors.AppError
 }
 
-func NewService(applicationRepository applications.Repository, converter applications.Converter, resourcesService rafter.Service) Service {
+func NewService(applicationRepository applications.Repository, converter applications.Converter, resourcesService rafter.Service, applicationCredential appsecrets.Service) Service {
 	return &service{
 		applicationRepository: applicationRepository,
 		converter:             converter,
 		rafter:                resourcesService,
+		applicationCredential: applicationCredential,
 	}
 }
 
@@ -81,6 +87,21 @@ func (s *service) getExistingRuntimeApplications() ([]v1alpha1.Application, appe
 	}
 
 	return applications.Items, nil
+}
+
+func (s *service) getApplicationUID(application string) (types.UID, apperrors.AppError) {
+	app, err := s.applicationRepository.Get(application, v1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			message := fmt.Sprintf("Application %s not found", application)
+			return "", apperrors.NotFound(message)
+		}
+
+		message := fmt.Sprintf("Getting Application %s failed, %s", application, err.Error())
+		return "", apperrors.Internal(message)
+	}
+
+	return app.UID, nil
 }
 
 func (s *service) filterCompassApplications(applications []v1alpha1.Application) []v1alpha1.Application {
@@ -123,6 +144,13 @@ func (s *service) createApplication(directorApplication model.Application, runti
 		return newResult(runtimeApplication, directorApplication.ID, Create, err)
 	}
 
+	log.Infof("Creating credentials secrets for application '%s'.", directorApplication.Name)
+	err = s.upsertCredentialsSecrets(directorApplication)
+	if err != nil {
+		log.Warningf("Failed to create credentials secrets for application '%s': %s.", directorApplication.Name, err)
+		return newResult(runtimeApplication, directorApplication.ID, Create, err)
+	}
+
 	return newResult(runtimeApplication, directorApplication.ID, Create, nil)
 }
 
@@ -136,6 +164,24 @@ func (s *service) upsertAPIResources(directorApplication model.Application) appe
 		}
 	}
 
+	return appendedErr
+}
+
+func (s *service) upsertCredentialsSecrets(directorApplication model.Application) apperrors.AppError {
+	var appendedErr apperrors.AppError
+
+	appUID, apperr := s.getApplicationUID(directorApplication.Name)
+	if apperr != nil {
+		return apperr
+	}
+	for _, apiPackage := range directorApplication.APIPackages {
+		if apiPackage.DefaultInstanceAuth != nil && apiPackage.DefaultInstanceAuth.Credentials != nil {
+			_, err := s.applicationCredential.Upsert(directorApplication.Name, appUID, apiPackage.ID, apiPackage.DefaultInstanceAuth.Credentials)
+			if err != nil {
+				appendedErr = apperrors.AppendError(appendedErr, err)
+			}
+		}
+	}
 	return appendedErr
 }
 
@@ -184,6 +230,12 @@ func (s *service) deleteApplications(directorApplications []model.Application, r
 }
 
 func (s *service) deleteApplication(runtimeApplication v1alpha1.Application, applicationID string) Result {
+
+	log.Infof("Deleting credentials secrets for application '%s'.", runtimeApplication.Name)
+	if err := s.deleteCredentialsSecrets(runtimeApplication); err != nil {
+		log.Warningf("Failed to delete credentials secrets for application '%s': %s.", runtimeApplication.Name, err)
+	}
+
 	log.Infof("Deleting API resources for application '%s'.", runtimeApplication.Name)
 	appendedErr := s.deleteAllAPIResources(runtimeApplication)
 	if appendedErr != nil {
@@ -211,6 +263,32 @@ func (s *service) deleteAllAPIResources(runtimeApplication v1alpha1.Application)
 	}
 
 	return appendedErr
+}
+
+func (s *service) deleteCredentialsSecrets(runtimeApplication v1alpha1.Application) apperrors.AppError {
+	var appendedErr apperrors.AppError
+
+	secretNames := s.getCredentialsSecretNames(runtimeApplication)
+
+	for secretName := range secretNames {
+		err := s.applicationCredential.Delete(secretName)
+		if err != nil {
+			appendedErr = apperrors.AppendError(appendedErr, err)
+		}
+	}
+	return appendedErr
+}
+
+func (s *service) getCredentialsSecretNames(runtimeApplication v1alpha1.Application) map[string]struct{} {
+	secretNames := make(map[string]struct{})
+	for _, service := range runtimeApplication.Spec.Services {
+		for _, entry := range service.Entries {
+			if entry.Credentials.SecretName != "" {
+				secretNames[entry.Credentials.SecretName] = struct{}{}
+			}
+		}
+	}
+	return secretNames
 }
 
 func (s *service) updateApplications(directorApplications []model.Application, runtimeApplications []v1alpha1.Application) []Result {
@@ -242,6 +320,12 @@ func (s *service) updateApplication(directorApplication model.Application, exist
 		log.Warningf("Failed to update API resources for application '%s': %s.", directorApplication.Name, appendedErr)
 	}
 
+	log.Infof("Updating credentials secrets for application '%s'.", directorApplication.Name)
+	appendedErr = s.updateCredentialsSecrets(directorApplication, existentRuntimeApplication, *updatedRuntimeApplication)
+	if appendedErr != nil {
+		log.Warningf("Failed to update credentials secrets for application '%s': %s.", directorApplication.Name, appendedErr)
+	}
+
 	return newResult(existentRuntimeApplication, directorApplication.ID, Update, appendedErr)
 }
 
@@ -260,5 +344,33 @@ func (s *service) updateAPIResources(directorApplication model.Application, exis
 		}
 	}
 
+	return appendedErr
+}
+
+func (s *service) updateCredentialsSecrets(directorApplication model.Application, existentRuntimeApplication v1alpha1.Application, newRuntimeApplication v1alpha1.Application) apperrors.AppError {
+	var appendedErr apperrors.AppError
+
+	// delete
+	existentSecretNames := s.getCredentialsSecretNames(existentRuntimeApplication)
+	newSecretNames := s.getCredentialsSecretNames(newRuntimeApplication)
+	deletedSecretNames := make(map[string]struct{})
+	for secretName := range existentSecretNames {
+		if _, ok := newSecretNames[secretName]; !ok {
+			deletedSecretNames[secretName] = struct{}{}
+		}
+	}
+	for secretName := range deletedSecretNames {
+		log.Infof("Deleting credentials secret '%s' for application '%s'", secretName, directorApplication.Name)
+		err := s.applicationCredential.Delete(secretName)
+		if err != nil {
+			appendedErr = apperrors.AppendError(appendedErr, err)
+		}
+	}
+
+	// create + update
+	err := s.upsertCredentialsSecrets(directorApplication)
+	if err != nil {
+		appendedErr = apperrors.AppendError(appendedErr, err)
+	}
 	return appendedErr
 }

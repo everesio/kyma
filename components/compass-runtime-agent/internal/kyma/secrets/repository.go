@@ -1,8 +1,9 @@
-// Package secrets contains components for accessing/modifying client secrets
-package secrets
+// Package appsecrets contains components for accessing/modifying client secrets
+package appsecrets
 
 import (
 	"context"
+	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/secrets"
 
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/apperrors"
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/k8sconsts"
@@ -16,35 +17,26 @@ import (
 // Repository contains operations for managing client credentials
 //go:generate mockery --name Repository
 type Repository interface {
-	Create(application string, appUID types.UID, name, serviceID string, data strategy.SecretData) apperrors.AppError
+	Create(application string, appUID types.UID, name, packageID string, data strategy.SecretData) apperrors.AppError
 	Get(name string) (strategy.SecretData, apperrors.AppError)
 	Delete(name string) apperrors.AppError
-	Upsert(application string, appUID types.UID, name, secretID string, data strategy.SecretData) apperrors.AppError
+	Upsert(application string, appUID types.UID, name, packageID string, data strategy.SecretData) apperrors.AppError
 }
 
 type repository struct {
-	secretsManager Manager
-}
-
-// Manager contains operations for managing k8s secrets
-//go:generate mockery --name Manager
-type Manager interface {
-	Create(ctx context.Context, secret *v1.Secret, options metav1.CreateOptions) (*v1.Secret, error)
-	Get(ctx context.Context, name string, options metav1.GetOptions) (*v1.Secret, error)
-	Delete(ctx context.Context, name string, options metav1.DeleteOptions) error
-	Update(ctx context.Context, secret *v1.Secret, opts metav1.UpdateOptions) (*v1.Secret, error)
+	secretsManager secrets.Manager
 }
 
 // NewRepository creates a new secrets repository
-func NewRepository(secretsManager Manager) Repository {
+func NewRepository(secretsManager secrets.Manager) Repository {
 	return &repository{
 		secretsManager: secretsManager,
 	}
 }
 
 // Create adds a new secret with one entry containing specified clientId and clientSecret
-func (r *repository) Create(application string, appUID types.UID, name, serviceID string, data strategy.SecretData) apperrors.AppError {
-	secret := makeSecret(name, serviceID, application, appUID, data)
+func (r *repository) Create(application string, appUID types.UID, name, packageID string, data strategy.SecretData) apperrors.AppError {
+	secret := makeSecret(name, packageID, application, appUID, data)
 	return r.create(application, secret, name)
 }
 
@@ -68,8 +60,8 @@ func (r *repository) Delete(name string) apperrors.AppError {
 	return nil
 }
 
-func (r *repository) Upsert(application string, appUID types.UID, name, serviceID string, data strategy.SecretData) apperrors.AppError {
-	secret := makeSecret(name, serviceID, application, appUID, data)
+func (r *repository) Upsert(application string, appUID types.UID, name, packageID string, data strategy.SecretData) apperrors.AppError {
+	secret := makeSecret(name, packageID, application, appUID, data)
 
 	_, err := r.secretsManager.Update(context.Background(), secret, metav1.UpdateOptions{})
 	if err != nil {
@@ -92,13 +84,13 @@ func (r *repository) create(application string, secret *v1.Secret, name string) 
 	return nil
 }
 
-func makeSecret(name, serviceID, application string, appUID types.UID, data strategy.SecretData) *v1.Secret {
+func makeSecret(name, packageID, application string, appUID types.UID, data strategy.SecretData) *v1.Secret {
 	return &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
 				k8sconsts.LabelApplication: application,
-				k8sconsts.LabelServiceId:   serviceID,
+				k8sconsts.LabelPackageId:   packageID,
 			},
 			OwnerReferences: k8sconsts.CreateOwnerReferenceForApplication(application, appUID),
 		},
