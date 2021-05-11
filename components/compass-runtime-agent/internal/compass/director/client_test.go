@@ -100,6 +100,8 @@ const (
 		url
 	}
 	}
+		additionalHeaders
+		additionalQueryParams
 		requestAuth {
 		csrf {
 		tokenEndpointURL

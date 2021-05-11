@@ -201,9 +201,10 @@ func convertCredentials(compassAuth *graphql.Auth) *kymamodel.Credentials {
 		v := credential.(*graphql.OAuthCredentialData)
 		if v != nil {
 			result.Oauth = &kymamodel.Oauth{
-				URL:          v.URL,
-				ClientID:     v.ClientID,
-				ClientSecret: v.ClientSecret,
+				URL:               v.URL,
+				ClientID:          v.ClientID,
+				ClientSecret:      v.ClientSecret,
+				RequestParameters: convertRequestParameters(compassAuth),
 			}
 			result.CSRFInfo = convertCSRFInfo(compassAuth)
 		}
@@ -218,6 +219,22 @@ func convertCredentials(compassAuth *graphql.Auth) *kymamodel.Credentials {
 		}
 	}
 	return result
+}
+
+func convertRequestParameters(compassAuth *graphql.Auth) *kymamodel.RequestParameters {
+	if compassAuth.AdditionalHeaders != nil || compassAuth.AdditionalQueryParams != nil {
+		result := &kymamodel.RequestParameters{}
+		if compassAuth.AdditionalHeaders != nil {
+			v := map[string][]string(*compassAuth.AdditionalHeaders)
+			result.Headers = &v
+		}
+		if compassAuth.AdditionalQueryParams != nil {
+			v := map[string][]string(*compassAuth.AdditionalQueryParams)
+			result.QueryParameters = &v
+		}
+		return result
+	}
+	return nil
 }
 
 func convertCSRFInfo(compassAuth *graphql.Auth) *kymamodel.CSRFInfo {

@@ -125,6 +125,8 @@ func TestApplication_ToApplication(t *testing.T) {
 								ClientSecret: "my-client-secret",
 								URL:          "https://test-oauth.com",
 							},
+							AdditionalHeaders:     &graphql.HttpHeaders{"h1": {"v1"}},
+							AdditionalQueryParams: &graphql.QueryParams{"q1": {"p1"}},
 						}),
 						fixCompassPackageWithDefaultInstanceAuth("4", &graphql.Auth{
 							Credential: &graphql.BasicCredentialData{
@@ -175,6 +177,14 @@ func TestApplication_ToApplication(t *testing.T) {
 								ClientID:     "my-client-id",
 								ClientSecret: "my-client-secret",
 								URL:          "https://test-oauth.com",
+								RequestParameters: &kymamodel.RequestParameters{
+									Headers: &map[string][]string{
+										"h1": {"v1"},
+									},
+									QueryParameters: &map[string][]string{
+										"q1": {"p1"},
+									},
+								},
 							},
 						},
 					}),

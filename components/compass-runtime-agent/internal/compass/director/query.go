@@ -125,6 +125,8 @@ func documentData() string {
 func authData() string {
 	return fmt.Sprintf(`
 		credential {%s}
+		additionalHeaders
+		additionalQueryParams
 		requestAuth {%s}
 		`, credentialData(), requestAuthData())
 }
