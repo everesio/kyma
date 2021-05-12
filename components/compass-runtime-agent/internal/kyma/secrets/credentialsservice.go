@@ -11,33 +11,33 @@ import (
 
 type modificationFunction func(modStrategy strategy.ModificationStrategy, application string, appUID types.UID, name, packageID string, newData strategy.SecretData) apperrors.AppError
 
-//go:generate mockery --name Service
-type Service interface {
+//go:generate mockery --name CredentialsService
+type CredentialsService interface {
 	Get(application string, credentials applications.Credentials) (model.Credentials, apperrors.AppError)
 	Create(application string, appUID types.UID, packageID string, credentials *model.Credentials) (applications.Credentials, apperrors.AppError)
 	Upsert(application string, appUID types.UID, packageID string, credentials *model.Credentials) (applications.Credentials, apperrors.AppError)
 	Delete(name string) apperrors.AppError
 }
 
-type service struct {
+type credentialsService struct {
 	repository      Repository
 	strategyFactory strategy.Factory
 	nameResolver    k8sconsts.NameResolver
 }
 
-func NewService(repository Repository, strategyFactory strategy.Factory, nameResolver k8sconsts.NameResolver) Service {
-	return &service{
+func NewCredentialsService(repository Repository, strategyFactory strategy.Factory, nameResolver k8sconsts.NameResolver) CredentialsService {
+	return &credentialsService{
 		repository:      repository,
 		strategyFactory: strategyFactory,
 		nameResolver:    nameResolver,
 	}
 }
 
-func (s *service) Create(application string, appUID types.UID, packageID string, credentials *model.Credentials) (applications.Credentials, apperrors.AppError) {
+func (s *credentialsService) Create(application string, appUID types.UID, packageID string, credentials *model.Credentials) (applications.Credentials, apperrors.AppError) {
 	return s.modifySecret(application, appUID, packageID, credentials, s.createSecret)
 }
 
-func (s *service) Get(application string, credentials applications.Credentials) (model.Credentials, apperrors.AppError) {
+func (s *credentialsService) Get(application string, credentials applications.Credentials) (model.Credentials, apperrors.AppError) {
 	accessStrategy, err := s.strategyFactory.NewSecretAccessStrategy(&credentials)
 	if err != nil {
 		return model.Credentials{}, err.Append("Failed to initialize strategy")
@@ -51,15 +51,15 @@ func (s *service) Get(application string, credentials applications.Credentials) 
 	return accessStrategy.ToCredentials(data, &credentials)
 }
 
-func (s *service) Upsert(application string, appUID types.UID, packageID string, credentials *model.Credentials) (applications.Credentials, apperrors.AppError) {
+func (s *credentialsService) Upsert(application string, appUID types.UID, packageID string, credentials *model.Credentials) (applications.Credentials, apperrors.AppError) {
 	return s.modifySecret(application, appUID, packageID, credentials, s.upsertSecret)
 }
 
-func (s *service) Delete(name string) apperrors.AppError {
+func (s *credentialsService) Delete(name string) apperrors.AppError {
 	return s.repository.Delete(name)
 }
 
-func (s *service) modifySecret(application string, appUID types.UID, packageID string, credentials *model.Credentials, modFunction modificationFunction) (applications.Credentials, apperrors.AppError) {
+func (s *credentialsService) modifySecret(application string, appUID types.UID, packageID string, credentials *model.Credentials, modFunction modificationFunction) (applications.Credentials, apperrors.AppError) {
 	if credentials == nil {
 		return applications.Credentials{}, nil
 	}
@@ -88,7 +88,7 @@ func (s *service) modifySecret(application string, appUID types.UID, packageID s
 	return modStrategy.ToCredentialsInfo(credentials, name), nil
 }
 
-func (s *service) upsertSecret(modStrategy strategy.ModificationStrategy, application string, appUID types.UID, name, packageID string, newData strategy.SecretData) apperrors.AppError {
+func (s *credentialsService) upsertSecret(modStrategy strategy.ModificationStrategy, application string, appUID types.UID, name, packageID string, newData strategy.SecretData) apperrors.AppError {
 	currentData, err := s.repository.Get(name)
 	if err != nil {
 		if err.Code() == apperrors.CodeNotFound {
@@ -105,6 +105,6 @@ func (s *service) upsertSecret(modStrategy strategy.ModificationStrategy, applic
 	return nil
 }
 
-func (s *service) createSecret(_ strategy.ModificationStrategy, application string, appUID types.UID, name, packageID string, newData strategy.SecretData) apperrors.AppError {
+func (s *credentialsService) createSecret(_ strategy.ModificationStrategy, application string, appUID types.UID, name, packageID string, newData strategy.SecretData) apperrors.AppError {
 	return s.repository.Create(application, appUID, name, packageID, newData)
 }

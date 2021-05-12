@@ -1,6 +1,7 @@
-package model
+package appsecrets
 
 import (
+	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/model"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,7 +9,7 @@ import (
 )
 
 var (
-	requestParameters = &RequestParameters{
+	requestParameters = &model.RequestParameters{
 		Headers: &map[string][]string{
 			"TestHeader": {
 				"header value",

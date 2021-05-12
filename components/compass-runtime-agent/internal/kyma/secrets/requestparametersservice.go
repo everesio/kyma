@@ -8,12 +8,6 @@ import (
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/model"
 )
 
-const (
-	k8sResourceNameMaxLength = 64
-
-	requestParamsNameFormat = "params-%s"
-)
-
 type requestParametersSecretModificationFunction func(application string, appUID types.UID, name, packageID string, newData map[string][]byte) apperrors.AppError
 
 //go:generate mockery --name RequestParametersService
@@ -46,7 +40,7 @@ func (s *requestParametersService) Get(secretName string) (*model.RequestParamet
 		return nil, err
 	}
 
-	return model.MapToRequestParameters(data)
+	return MapToRequestParameters(data)
 }
 
 func (s *requestParametersService) Upsert(application string, appUID types.UID, packageID string, requestParameters *model.RequestParameters) (string, apperrors.AppError) {
@@ -66,7 +60,7 @@ func (s *requestParametersService) modifySecret(application string, appUID types
 
 	name := s.createSecretName(application, packageID)
 
-	secretData, err := model.RequestParametersToMap(requestParameters)
+	secretData, err := RequestParametersToMap(requestParameters)
 	if err != nil {
 		return "", err.Append("Failed to create request parameters secret data")
 	}

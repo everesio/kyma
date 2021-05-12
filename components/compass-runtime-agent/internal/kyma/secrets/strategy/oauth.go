@@ -1,8 +1,6 @@
 package strategy
 
 import (
-	"encoding/json"
-
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/apperrors"
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/applications"
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/model"
@@ -11,25 +9,19 @@ import (
 const (
 	OauthClientIDKey     = "clientId"
 	OauthClientSecretKey = "clientSecret"
-	HeadersKey           = "headers"
-	QueryParametersKey   = "queryParameters"
 )
 
 type oauth struct{}
 
 func (svc *oauth) ToCredentials(secretData SecretData, appCredentials *applications.Credentials) (model.Credentials, apperrors.AppError) {
-	clientId, clientSecret, requestParameters, err := svc.readOauthMap(secretData)
-	if err != nil {
-		return model.Credentials{}, apperrors.Internal("Failed to read OAuth map, %v", err)
-	}
-
+	clientId, clientSecret := svc.readOauthMap(secretData)
 	return model.Credentials{
 		Oauth: &model.Oauth{
-			ClientID:          clientId,
-			ClientSecret:      clientSecret,
-			URL:               appCredentials.AuthenticationUrl,
-			RequestParameters: requestParameters,
-		}, CSRFInfo: convertToModelCSRInfo(appCredentials),
+			ClientID:     clientId,
+			ClientSecret: clientSecret,
+			URL:          appCredentials.AuthenticationUrl,
+		},
+		CSRFInfo:          convertToModelCSRInfo(appCredentials),
 	}, nil
 }
 
@@ -38,7 +30,7 @@ func (svc *oauth) CredentialsProvided(credentials *model.Credentials) bool {
 }
 
 func (svc *oauth) CreateSecretData(credentials *model.Credentials) (SecretData, apperrors.AppError) {
-	return svc.makeOauthMap(credentials.Oauth.ClientID, credentials.Oauth.ClientSecret, credentials.Oauth.RequestParameters)
+	return svc.makeOauthMap(credentials.Oauth.ClientID, credentials.Oauth.ClientSecret)
 }
 
 func (svc *oauth) ToCredentialsInfo(credentials *model.Credentials, secretName string) applications.Credentials {
@@ -62,32 +54,14 @@ func (svc *oauth) oauthCredentialsProvided(credentials *model.Credentials) bool 
 	return credentials != nil && credentials.Oauth != nil && credentials.Oauth.ClientID != "" && credentials.Oauth.ClientSecret != ""
 }
 
-func (svc *oauth) makeOauthMap(clientID, clientSecret string, requestParameters *model.RequestParameters) (map[string][]byte, apperrors.AppError) {
+func (svc *oauth) makeOauthMap(clientID, clientSecret string) (map[string][]byte, apperrors.AppError) {
 	m := map[string][]byte{
 		OauthClientIDKey:     []byte(clientID),
 		OauthClientSecretKey: []byte(clientSecret),
 	}
-	if requestParameters != nil && requestParameters.Headers != nil {
-		headers, err := json.Marshal(requestParameters.Headers)
-		if err != nil {
-			return map[string][]byte{}, apperrors.Internal("Failed to marshall headers from request parameters: %v", err)
-		}
-		m[HeadersKey] = headers
-	}
-	if requestParameters != nil && requestParameters.QueryParameters != nil {
-		queryParameters, err := json.Marshal(requestParameters.QueryParameters)
-		if err != nil {
-			return map[string][]byte{}, apperrors.Internal("Failed to marshall query parameters from request parameters: %v", err)
-		}
-		m[QueryParametersKey] = queryParameters
-	}
 	return m, nil
 }
 
-func (svc *oauth) readOauthMap(data map[string][]byte) (clientID, clientSecret string, requestParameters *model.RequestParameters, err error) {
-	requestParameters, err = model.MapToRequestParameters(data)
-	if err != nil {
-		return "", "", nil, err
-	}
-	return string(data[OauthClientIDKey]), string(data[OauthClientSecretKey]), requestParameters, nil
+func (svc *oauth) readOauthMap(data map[string][]byte) (clientID, clientSecret string) {
+	return string(data[OauthClientIDKey]), string(data[OauthClientSecretKey])
 }

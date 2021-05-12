@@ -37,7 +37,7 @@ func (resolver nameResolver) GetCredentialsSecretName(application, packageID str
 
 // GetRequestParametersSecretName returns request parameters secret name
 func (resolver nameResolver) GetRequestParametersSecretName(application, packageID string) string {
-	return getResourceName(fmt.Sprintf("%s-request-params", application), packageID)
+	return getResourceName(fmt.Sprintf("%s-params", application), packageID)
 }
 
 // GetResourceName returns resource name with given ID

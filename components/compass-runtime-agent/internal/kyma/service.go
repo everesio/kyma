@@ -16,10 +16,11 @@ import (
 )
 
 type service struct {
-	applicationRepository applications.Repository
-	converter             applications.Converter
-	rafter                rafter.Service
-	applicationCredential appsecrets.Service
+	applicationRepository    applications.Repository
+	converter                applications.Converter
+	rafter                   rafter.Service
+	credentialsService       appsecrets.CredentialsService
+	requestParametersService appsecrets.RequestParametersService
 }
 
 //go:generate mockery --name=Service
@@ -42,12 +43,13 @@ type Result struct {
 	Error           apperrors.AppError
 }
 
-func NewService(applicationRepository applications.Repository, converter applications.Converter, resourcesService rafter.Service, applicationCredential appsecrets.Service) Service {
+func NewService(applicationRepository applications.Repository, converter applications.Converter, resourcesService rafter.Service, credentialsService appsecrets.CredentialsService, requestParametersService appsecrets.RequestParametersService) Service {
 	return &service{
-		applicationRepository: applicationRepository,
-		converter:             converter,
-		rafter:                resourcesService,
-		applicationCredential: applicationCredential,
+		applicationRepository:    applicationRepository,
+		converter:                converter,
+		rafter:                   resourcesService,
+		credentialsService:       credentialsService,
+		requestParametersService: requestParametersService,
 	}
 }
 
@@ -81,12 +83,12 @@ func (s *service) apply(runtimeApplications []v1alpha1.Application, directorAppl
 }
 
 func (s *service) getExistingRuntimeApplications() ([]v1alpha1.Application, apperrors.AppError) {
-	applications, err := s.applicationRepository.List(v1.ListOptions{})
+	applicationList, err := s.applicationRepository.List(v1.ListOptions{})
 	if err != nil {
 		return nil, apperrors.Internal("Failed to get application list: %s", err)
 	}
 
-	return applications.Items, nil
+	return applicationList.Items, nil
 }
 
 func (s *service) getApplicationUID(application string) (types.UID, apperrors.AppError) {
@@ -176,7 +178,7 @@ func (s *service) upsertCredentialsSecrets(directorApplication model.Application
 	}
 	for _, apiPackage := range directorApplication.APIPackages {
 		if apiPackage.DefaultInstanceAuth != nil && apiPackage.DefaultInstanceAuth.Credentials != nil {
-			_, err := s.applicationCredential.Upsert(directorApplication.Name, appUID, apiPackage.ID, apiPackage.DefaultInstanceAuth.Credentials)
+			_, err := s.credentialsService.Upsert(directorApplication.Name, appUID, apiPackage.ID, apiPackage.DefaultInstanceAuth.Credentials)
 			if err != nil {
 				appendedErr = apperrors.AppendError(appendedErr, err)
 			}
@@ -271,7 +273,7 @@ func (s *service) deleteCredentialsSecrets(runtimeApplication v1alpha1.Applicati
 	secretNames := s.getCredentialsSecretNames(runtimeApplication)
 
 	for secretName := range secretNames {
-		err := s.applicationCredential.Delete(secretName)
+		err := s.credentialsService.Delete(secretName)
 		if err != nil {
 			appendedErr = apperrors.AppendError(appendedErr, err)
 		}
@@ -361,7 +363,7 @@ func (s *service) updateCredentialsSecrets(directorApplication model.Application
 	}
 	for secretName := range deletedSecretNames {
 		log.Infof("Deleting credentials secret '%s' for application '%s'", secretName, directorApplication.Name)
-		err := s.applicationCredential.Delete(secretName)
+		err := s.credentialsService.Delete(secretName)
 		if err != nil {
 			appendedErr = apperrors.AppendError(appendedErr, err)
 		}

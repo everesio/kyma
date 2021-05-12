@@ -201,12 +201,12 @@ func convertCredentials(compassAuth *graphql.Auth) *kymamodel.Credentials {
 		v := credential.(*graphql.OAuthCredentialData)
 		if v != nil {
 			result.Oauth = &kymamodel.Oauth{
-				URL:               v.URL,
-				ClientID:          v.ClientID,
-				ClientSecret:      v.ClientSecret,
-				RequestParameters: convertRequestParameters(compassAuth),
+				URL:          v.URL,
+				ClientID:     v.ClientID,
+				ClientSecret: v.ClientSecret,
 			}
 			result.CSRFInfo = convertCSRFInfo(compassAuth)
+			result.RequestParameters = convertRequestParameters(compassAuth)
 		}
 	case *graphql.BasicCredentialData:
 		v := credential.(*graphql.BasicCredentialData)
@@ -216,6 +216,7 @@ func convertCredentials(compassAuth *graphql.Auth) *kymamodel.Credentials {
 				Password: v.Password,
 			}
 			result.CSRFInfo = convertCSRFInfo(compassAuth)
+			result.RequestParameters = convertRequestParameters(compassAuth)
 		}
 	}
 	return result

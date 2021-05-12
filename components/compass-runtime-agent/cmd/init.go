@@ -61,9 +61,10 @@ func createKymaService(k8sResourceClients *k8sResourceClientSets, uploadServiceU
 	applicationManager := newApplicationManager(k8sResourceClients.application)
 	converter := applications.NewConverter(nameResolver)
 	rafterService := newRafter(k8sResourceClients.dynamic, uploadServiceUrl)
-	applicationCredential := appsecrets.NewService(repository, strategy.NewSecretsStrategyFactory(), nameResolver)
+	credentialsService := appsecrets.NewCredentialsService(repository, strategy.NewSecretsStrategyFactory(), nameResolver)
+	requestParametersService := appsecrets.NewRequestParametersService(repository, nameResolver)
 
-	return kyma.NewService(applicationManager, converter, rafterService, applicationCredential), nil
+	return kyma.NewService(applicationManager, converter, rafterService, credentialsService, requestParametersService), nil
 }
 
 func newRafter(dynamicClient dynamic.Interface, uploadServiceURL string) rafter.Service {

@@ -15,13 +15,12 @@ type basicAuth struct{}
 
 func (svc *basicAuth) ToCredentials(secretData SecretData, appCredentials *applications.Credentials) (model.Credentials, apperrors.AppError) {
 	username, password := svc.readBasicAuthMap(secretData)
-
 	return model.Credentials{
 		Basic: &model.Basic{
 			Username: username,
 			Password: password,
 		},
-		CSRFInfo: convertToModelCSRInfo(appCredentials),
+		CSRFInfo:          convertToModelCSRInfo(appCredentials),
 	}, nil
 }
 

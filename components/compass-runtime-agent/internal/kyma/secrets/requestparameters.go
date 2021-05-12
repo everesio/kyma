@@ -1,8 +1,9 @@
-package model
+package appsecrets
 
 import (
 	"encoding/json"
 	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/apperrors"
+	"github.com/kyma-project/kyma/components/compass-runtime-agent/internal/kyma/model"
 )
 
 const (
@@ -10,8 +11,8 @@ const (
 	requestParametersQueryParametersKey = "queryParameters"
 )
 
-func MapToRequestParameters(data map[string][]byte) (*RequestParameters, apperrors.AppError) {
-	requestParameters := &RequestParameters{}
+func MapToRequestParameters(data map[string][]byte) (*model.RequestParameters, apperrors.AppError) {
+	requestParameters := &model.RequestParameters{}
 
 	headersData := data[requestParametersHeadersKey]
 	if headersData != nil {
@@ -42,7 +43,7 @@ func MapToRequestParameters(data map[string][]byte) (*RequestParameters, apperro
 	return requestParameters, nil
 }
 
-func RequestParametersToMap(requestParameters *RequestParameters) (map[string][]byte, apperrors.AppError) {
+func RequestParametersToMap(requestParameters *model.RequestParameters) (map[string][]byte, apperrors.AppError) {
 	data := make(map[string][]byte)
 	if requestParameters == nil {
 		return map[string][]byte{}, nil

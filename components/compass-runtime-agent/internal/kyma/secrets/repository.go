@@ -37,7 +37,7 @@ func NewRepository(secretsManager secrets.Manager) Repository {
 // Create adds a new secret with one entry containing specified clientId and clientSecret
 func (r *repository) Create(application string, appUID types.UID, name, packageID string, data strategy.SecretData) apperrors.AppError {
 	secret := makeSecret(name, packageID, application, appUID, data)
-	return r.create(application, secret, name)
+	return r.create(secret, name)
 }
 
 func (r *repository) Get(name string) (data strategy.SecretData, error apperrors.AppError) {
@@ -66,14 +66,14 @@ func (r *repository) Upsert(application string, appUID types.UID, name, packageI
 	_, err := r.secretsManager.Update(context.Background(), secret, metav1.UpdateOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			return r.create(application, secret, name)
+			return r.create(secret, name)
 		}
 		return apperrors.Internal("Updating %s secret failed, %s", name, err.Error())
 	}
 	return nil
 }
 
-func (r *repository) create(application string, secret *v1.Secret, name string) apperrors.AppError {
+func (r *repository) create(secret *v1.Secret, name string) apperrors.AppError {
 	_, err := r.secretsManager.Create(context.Background(), secret, metav1.CreateOptions{})
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {

@@ -102,7 +102,8 @@ type Credentials struct {
 	Oauth *Oauth
 	// BasicAuth configuration
 	Basic *Basic
-
+	// Additional request parameters
+	RequestParameters *RequestParameters
 	// Optional CSRF Data
 	CSRFInfo *CSRFInfo
 }
@@ -115,8 +116,6 @@ type Oauth struct {
 	ClientID string
 	// ClientSecret to use for authentication.
 	ClientSecret string
-	// Additional request parameters
-	RequestParameters *RequestParameters
 }
 
 // Basic contains user and password for Basic Auth
