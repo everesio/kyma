@@ -153,6 +153,13 @@ func (s *service) createApplication(directorApplication model.Application, runti
 		return newResult(runtimeApplication, directorApplication.ID, Create, err)
 	}
 
+	log.Infof("Creating request parameters secrets for application '%s'.", directorApplication.Name)
+	err = s.upsertRequestParametersSecrets(directorApplication)
+	if err != nil {
+		log.Warningf("Failed to create request parameters secrets for application '%s': %s.", directorApplication.Name, err)
+		return newResult(runtimeApplication, directorApplication.ID, Create, err)
+	}
+
 	return newResult(runtimeApplication, directorApplication.ID, Create, nil)
 }
 
@@ -179,6 +186,24 @@ func (s *service) upsertCredentialsSecrets(directorApplication model.Application
 	for _, apiPackage := range directorApplication.APIPackages {
 		if apiPackage.DefaultInstanceAuth != nil && apiPackage.DefaultInstanceAuth.Credentials != nil {
 			_, err := s.credentialsService.Upsert(directorApplication.Name, appUID, apiPackage.ID, apiPackage.DefaultInstanceAuth.Credentials)
+			if err != nil {
+				appendedErr = apperrors.AppendError(appendedErr, err)
+			}
+		}
+	}
+	return appendedErr
+}
+
+func (s *service) upsertRequestParametersSecrets(directorApplication model.Application) apperrors.AppError {
+	var appendedErr apperrors.AppError
+
+	appUID, apperr := s.getApplicationUID(directorApplication.Name)
+	if apperr != nil {
+		return apperr
+	}
+	for _, apiPackage := range directorApplication.APIPackages {
+		if apiPackage.DefaultInstanceAuth != nil && apiPackage.DefaultInstanceAuth.Credentials != nil {
+			_, err := s.requestParametersService.Upsert(directorApplication.Name, appUID, apiPackage.ID, apiPackage.DefaultInstanceAuth.Credentials.RequestParameters)
 			if err != nil {
 				appendedErr = apperrors.AppendError(appendedErr, err)
 			}
@@ -232,6 +257,11 @@ func (s *service) deleteApplications(directorApplications []model.Application, r
 }
 
 func (s *service) deleteApplication(runtimeApplication v1alpha1.Application, applicationID string) Result {
+
+	log.Infof("Deleting request parameters secrets for application '%s'.", runtimeApplication.Name)
+	if err := s.deleteRequestParametersSecrets(runtimeApplication); err != nil {
+		log.Warningf("Failed to delete request parameters secrets secrets for application '%s': %s.", runtimeApplication.Name, err)
+	}
 
 	log.Infof("Deleting credentials secrets for application '%s'.", runtimeApplication.Name)
 	if err := s.deleteCredentialsSecrets(runtimeApplication); err != nil {
@@ -293,6 +323,32 @@ func (s *service) getCredentialsSecretNames(runtimeApplication v1alpha1.Applicat
 	return secretNames
 }
 
+func (s *service) deleteRequestParametersSecrets(runtimeApplication v1alpha1.Application) apperrors.AppError {
+	var appendedErr apperrors.AppError
+
+	secretNames := s.getRequestParametersSecretNames(runtimeApplication)
+
+	for secretName := range secretNames {
+		err := s.requestParametersService.Delete(secretName)
+		if err != nil {
+			appendedErr = apperrors.AppendError(appendedErr, err)
+		}
+	}
+	return appendedErr
+}
+
+func (s *service) getRequestParametersSecretNames(runtimeApplication v1alpha1.Application) map[string]struct{} {
+	secretNames := make(map[string]struct{})
+	for _, service := range runtimeApplication.Spec.Services {
+		for _, entry := range service.Entries {
+			if entry.RequestParametersSecretName != "" {
+				secretNames[entry.RequestParametersSecretName] = struct{}{}
+			}
+		}
+	}
+	return secretNames
+}
+
 func (s *service) updateApplications(directorApplications []model.Application, runtimeApplications []v1alpha1.Application) []Result {
 	log.Info("Updating applications.")
 	results := make([]Result, 0)
@@ -326,6 +382,12 @@ func (s *service) updateApplication(directorApplication model.Application, exist
 	appendedErr = s.updateCredentialsSecrets(directorApplication, existentRuntimeApplication, *updatedRuntimeApplication)
 	if appendedErr != nil {
 		log.Warningf("Failed to update credentials secrets for application '%s': %s.", directorApplication.Name, appendedErr)
+	}
+
+	log.Infof("Updating request paramters secrets for application '%s'.", directorApplication.Name)
+	appendedErr = s.updateRequestParametersSecrets(directorApplication, existentRuntimeApplication, *updatedRuntimeApplication)
+	if appendedErr != nil {
+		log.Warningf("Failed to request paramters secrets for application '%s': %s.", directorApplication.Name, appendedErr)
 	}
 
 	return newResult(existentRuntimeApplication, directorApplication.ID, Update, appendedErr)
@@ -371,6 +433,34 @@ func (s *service) updateCredentialsSecrets(directorApplication model.Application
 
 	// create + update
 	err := s.upsertCredentialsSecrets(directorApplication)
+	if err != nil {
+		appendedErr = apperrors.AppendError(appendedErr, err)
+	}
+	return appendedErr
+}
+
+func (s *service) updateRequestParametersSecrets(directorApplication model.Application, existentRuntimeApplication v1alpha1.Application, newRuntimeApplication v1alpha1.Application) apperrors.AppError {
+	var appendedErr apperrors.AppError
+
+	// delete
+	existentSecretNames := s.getRequestParametersSecretNames(existentRuntimeApplication)
+	newSecretNames := s.getRequestParametersSecretNames(newRuntimeApplication)
+	deletedSecretNames := make(map[string]struct{})
+	for secretName := range existentSecretNames {
+		if _, ok := newSecretNames[secretName]; !ok {
+			deletedSecretNames[secretName] = struct{}{}
+		}
+	}
+	for secretName := range deletedSecretNames {
+		log.Infof("Deleting request parameters secret '%s' for application '%s'", secretName, directorApplication.Name)
+		err := s.requestParametersService.Delete(secretName)
+		if err != nil {
+			appendedErr = apperrors.AppendError(appendedErr, err)
+		}
+	}
+
+	// create + update
+	err := s.upsertRequestParametersSecrets(directorApplication)
 	if err != nil {
 		appendedErr = apperrors.AppendError(appendedErr, err)
 	}

@@ -52,7 +52,7 @@ func k8sResourceClients(k8sConfig *restclient.Config) (*k8sResourceClientSets, e
 }
 
 func createKymaService(k8sResourceClients *k8sResourceClientSets, uploadServiceUrl string, integrationNamespace string) (kyma.Service, error) {
-	nameResolver := k8sconsts.NewNameResolver(integrationNamespace)
+	nameResolver := k8sconsts.NewNameResolver()
 	secretsManagerConstructor := func(namespace string) secrets.Manager {
 		return k8sResourceClients.core.CoreV1().Secrets(namespace)
 	}

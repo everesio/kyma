@@ -139,6 +139,11 @@ type RequestParameters struct {
 	QueryParameters *map[string][]string `json:"queryParameters"`
 }
 
+// IsEmpty returns true if additional headers and query parameters contain no data, otherwise false
+func (r RequestParameters) IsEmpty() bool {
+	return (r.Headers == nil || len(*r.Headers) == 0) && (r.QueryParameters == nil || len(*r.QueryParameters) == 0)
+}
+
 // Auth contains authentication data
 type Auth struct {
 	Credentials *Credentials

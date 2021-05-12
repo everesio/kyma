@@ -19,15 +19,11 @@ type NameResolver interface {
 	GetRequestParametersSecretName(application, packageID string) string
 }
 
-type nameResolver struct {
-	namespace string
-}
+type nameResolver struct{}
 
-// NewNameResolver creates NameResolver that uses application name and namespace.
-func NewNameResolver(namespace string) NameResolver {
-	return nameResolver{
-		namespace: namespace,
-	}
+// NewNameResolver creates NameResolver
+func NewNameResolver() NameResolver {
+	return nameResolver{}
 }
 
 // GetCredentialsSecretName returns credential secret name

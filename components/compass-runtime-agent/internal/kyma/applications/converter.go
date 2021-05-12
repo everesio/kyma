@@ -128,8 +128,8 @@ func (c converter) toAPIEntry(applicationName string, apiPackage model.APIPackag
 func (c converter) toRequestParametersSecretName(applicationName string, apiPackage model.APIPackage) string {
 	if apiPackage.DefaultInstanceAuth != nil && apiPackage.DefaultInstanceAuth.Credentials != nil {
 		requestParameters := apiPackage.DefaultInstanceAuth.Credentials.RequestParameters
-		if requestParameters != nil && (requestParameters.Headers != nil || requestParameters.QueryParameters != nil) {
-			c.nameResolver.GetRequestParametersSecretName(applicationName, apiPackage.ID)
+		if requestParameters != nil && !requestParameters.IsEmpty() {
+			return c.nameResolver.GetRequestParametersSecretName(applicationName, apiPackage.ID)
 		}
 	}
 	return ""
@@ -139,13 +139,13 @@ func (c converter) toCredential(applicationName string, apiPackage model.APIPack
 	result := v1alpha1.Credentials{}
 
 	if apiPackage.DefaultInstanceAuth != nil && apiPackage.DefaultInstanceAuth.Credentials != nil {
-		if apiPackage.DefaultInstanceAuth.Credentials.Oauth != nil {
-			csrfInfo := func(csrfInfo *model.CSRFInfo) *v1alpha1.CSRFInfo {
-				if csrfInfo != nil {
-					return &v1alpha1.CSRFInfo{TokenEndpointURL: csrfInfo.TokenEndpointURL}
-				}
-				return nil
+		csrfInfo := func(csrfInfo *model.CSRFInfo) *v1alpha1.CSRFInfo {
+			if csrfInfo != nil {
+				return &v1alpha1.CSRFInfo{TokenEndpointURL: csrfInfo.TokenEndpointURL}
 			}
+			return nil
+		}
+		if apiPackage.DefaultInstanceAuth.Credentials.Oauth != nil {
 			return v1alpha1.Credentials{
 				Type:              CredentialsOAuthType,
 				SecretName:        c.nameResolver.GetCredentialsSecretName(applicationName, apiPackage.ID),
@@ -156,6 +156,7 @@ func (c converter) toCredential(applicationName string, apiPackage model.APIPack
 			return v1alpha1.Credentials{
 				Type:       CredentialsBasicType,
 				SecretName: c.nameResolver.GetCredentialsSecretName(applicationName, apiPackage.ID),
+				CSRFInfo:   csrfInfo(apiPackage.DefaultInstanceAuth.Credentials.CSRFInfo),
 			}
 		}
 	}

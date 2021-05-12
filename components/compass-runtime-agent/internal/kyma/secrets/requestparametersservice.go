@@ -15,7 +15,7 @@ type RequestParametersService interface {
 	Get(secretName string) (*model.RequestParameters, apperrors.AppError)
 	Create(application string, appUID types.UID, packageID string, requestParameters *model.RequestParameters) (string, apperrors.AppError)
 	Upsert(application string, appUID types.UID, packageID string, requestParameters *model.RequestParameters) (string, apperrors.AppError)
-	Delete(application, packageID string) apperrors.AppError
+	Delete(secretName string) apperrors.AppError
 }
 
 type requestParametersService struct {
@@ -47,14 +47,12 @@ func (s *requestParametersService) Upsert(application string, appUID types.UID, 
 	return s.modifySecret(application, appUID, packageID, requestParameters, s.upsertSecret)
 }
 
-func (s *requestParametersService) Delete(application string, packageID string) apperrors.AppError {
-	secretName := s.createSecretName(application, packageID)
-
+func (s *requestParametersService) Delete(secretName string) apperrors.AppError {
 	return s.repository.Delete(secretName)
 }
 
 func (s *requestParametersService) modifySecret(application string, appUID types.UID, packageID string, requestParameters *model.RequestParameters, modFunction requestParametersSecretModificationFunction) (string, apperrors.AppError) {
-	if requestParameters == nil {
+	if requestParameters == nil || requestParameters.IsEmpty() {
 		return "", nil
 	}
 
