@@ -95,30 +95,6 @@ func main() {
 			Warnf("Deleted the application from the cache with values %v.", i)
 	})
 
-	proxyHandler := validationproxy.NewProxyHandler(
-		options.appNamePlaceholder,
-		options.eventingPathPrefixV1,
-		options.eventingPathPrefixV2,
-		options.eventingPathPrefixEvents,
-		options.eventingPublisherHost,
-		options.eventingDestinationPath,
-		options.appRegistryPathPrefix,
-		options.appRegistryHost,
-		idCache,
-		log)
-
-	tracingMiddleware := tracing.NewTracingMiddleware(proxyHandler.ProxyAppConnectorRequests)
-
-	proxyServer := http.Server{
-		Handler: validationproxy.NewHandler(tracingMiddleware),
-		Addr:    fmt.Sprintf(":%d", options.proxyPort),
-	}
-
-	externalServer := http.Server{
-		Handler: externalapi.NewHandler(),
-		Addr:    fmt.Sprintf(":%d", options.externalAPIPort),
-	}
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: "0",
@@ -131,6 +107,32 @@ func main() {
 	if err = controller.NewController(log, mgr.GetClient(), idCache).SetupWithManager(mgr); err != nil {
 		log.WithContext().Error("unable to create reconciler : %s", err.Error())
 		os.Exit(1)
+	}
+
+	cacheLoader := controller.NewCacheWithLoader(log, mgr.GetClient(), idCache)
+
+	proxyHandler := validationproxy.NewProxyHandler(
+		options.appNamePlaceholder,
+		options.eventingPathPrefixV1,
+		options.eventingPathPrefixV2,
+		options.eventingPathPrefixEvents,
+		options.eventingPublisherHost,
+		options.eventingDestinationPath,
+		options.appRegistryPathPrefix,
+		options.appRegistryHost,
+		cacheLoader.Get,
+		log)
+
+	tracingMiddleware := tracing.NewTracingMiddleware(proxyHandler.ProxyAppConnectorRequests)
+
+	proxyServer := http.Server{
+		Handler: validationproxy.NewHandler(tracingMiddleware),
+		Addr:    fmt.Sprintf(":%d", options.proxyPort),
+	}
+
+	externalServer := http.Server{
+		Handler: externalapi.NewHandler(),
+		Addr:    fmt.Sprintf(":%d", options.externalAPIPort),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

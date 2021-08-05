@@ -1,12 +1,12 @@
 package validationproxy
 
 import (
+	"context"
 	"crypto/x509/pkix"
 	"net/http"
 	"net/http/httputil"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/kyma-project/kyma/common/logging/logger"
@@ -24,10 +24,7 @@ type ProxyHandler interface {
 	ProxyAppConnectorRequests(w http.ResponseWriter, r *http.Request)
 }
 
-type Cache interface {
-	Get(k string) (interface{}, bool)
-	Set(k string, x interface{}, d time.Duration)
-}
+type CacheGetFunc func(ctx context.Context, key string) ([]string, bool)
 
 type proxyHandler struct {
 	appNamePlaceholder       string
@@ -44,7 +41,7 @@ type proxyHandler struct {
 
 	log *logger.Logger
 
-	cache Cache
+	cacheGetFunc CacheGetFunc
 }
 
 func NewProxyHandler(
@@ -56,7 +53,7 @@ func NewProxyHandler(
 	eventingDestinationPath string,
 	appRegistryPathPrefix string,
 	appRegistryHost string,
-	cache Cache,
+	cacheGetFunc CacheGetFunc,
 	log *logger.Logger) *proxyHandler {
 	return &proxyHandler{
 		appNamePlaceholder:       appNamePlaceholder,
@@ -71,8 +68,8 @@ func NewProxyHandler(
 		cloudEventsProxy:  createReverseProxy(log, eventingPublisherHost, withRewriteBaseURL(eventingDestinationPath), withEmptyRequestHost, withEmptyXFwdClientCert, withHTTPScheme),
 		appRegistryProxy:  createReverseProxy(log, appRegistryHost, withEmptyRequestHost, withHTTPScheme),
 
-		cache: cache,
-		log:   log,
+		cacheGetFunc: cacheGetFunc,
+		log:          log,
 	}
 }
 
@@ -91,7 +88,7 @@ func (ph *proxyHandler) ProxyAppConnectorRequests(w http.ResponseWriter, r *http
 
 	ph.log.WithTracing(r.Context()).With("handler", handlerName).With("application", applicationName).With("proxyPath", r.URL.Path).Infof("Proxying request for application...")
 
-	applicationClientIDs, err := ph.getCompassMetadataClientIDs(applicationName)
+	applicationClientIDs, err := ph.getCompassMetadataClientIDs(r.Context(), applicationName)
 	if err != nil {
 		httptools.RespondWithError(ph.log.WithTracing(r.Context()).With("handler", handlerName).With("applicationName", applicationName), w, apperrors.Internal("while getting application ClientIds: %s", err))
 		return
@@ -113,8 +110,8 @@ func (ph *proxyHandler) ProxyAppConnectorRequests(w http.ResponseWriter, r *http
 	reverseProxy.ServeHTTP(w, r)
 }
 
-func (ph *proxyHandler) getCompassMetadataClientIDs(applicationName string) ([]string, apperrors.AppError) {
-	applicationClientIDs, found := ph.getClientIDsFromCache(applicationName)
+func (ph *proxyHandler) getCompassMetadataClientIDs(ctx context.Context, applicationName string) ([]string, apperrors.AppError) {
+	applicationClientIDs, found := ph.getClientIDsFromCache(ctx, applicationName)
 	if !found {
 		err := apperrors.Internal("application with name %s is not found in the cache. Please retry", applicationName)
 		return nil, err
@@ -122,12 +119,12 @@ func (ph *proxyHandler) getCompassMetadataClientIDs(applicationName string) ([]s
 	return applicationClientIDs, nil
 }
 
-func (ph *proxyHandler) getClientIDsFromCache(applicationName string) ([]string, bool) {
-	clientIDs, found := ph.cache.Get(applicationName)
+func (ph *proxyHandler) getClientIDsFromCache(ctx context.Context, applicationName string) ([]string, bool) {
+	clientIDs, found := ph.cacheGetFunc(ctx, applicationName)
 	if !found {
 		return []string{}, found
 	}
-	return clientIDs.([]string), found
+	return clientIDs, found
 }
 
 func (ph *proxyHandler) mapRequestToProxy(path string, applicationName string) (*httputil.ReverseProxy, apperrors.AppError) {
